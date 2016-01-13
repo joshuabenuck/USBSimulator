@@ -456,6 +456,9 @@ uint16_t CALLBACK_USB_GetDescriptor(const uint16_t wValue,
 {
 	const uint8_t  DescriptorType   = (wValue >> 8);
 	const uint8_t  DescriptorNumber = (wValue & 0xFF);
+	// Hack! I was unable to get past a compiler error when I tried
+	// adding this as a function parameter.
+	const uint16_t wLength = USB_ControlRequest.wLength;
 
 	const void* Address = NULL;
 	uint16_t    Size    = NO_DESCRIPTOR;
@@ -467,13 +470,15 @@ uint16_t CALLBACK_USB_GetDescriptor(const uint16_t wValue,
 	}
 	
 	//Send the request back to the PC for a descriptor response
-	transmitBuffer[0] = 0x05;
+	transmitBuffer[0] = 0x07;
 	transmitBuffer[1] = 0x00;
 	transmitBuffer[2] = 'D';
 	transmitBuffer[3] = wValue & 0xFF;
 	transmitBuffer[4] = (wValue >> 8) & 0xFF;
 	transmitBuffer[5] = wIndex & 0xFF;
 	transmitBuffer[6] = (wIndex >> 8) & 0xFF;
+	transmitBuffer[7] = wLength & 0xFF;
+	transmitBuffer[8] = (wLength >> 8) & 0xFF;
 	SendReceive_StartSend();
 	while (SendReceive_IsPacketSending())
 	{
@@ -496,6 +501,14 @@ uint16_t CALLBACK_USB_GetDescriptor(const uint16_t wValue,
 		case DTYPE_Configuration:
 			Address	= receiveBuffer+2+1;
 			Size	= receiveBuffer[5] | (receiveBuffer[6] << 8);
+			break;
+		// TODO: Look up the constant for device qualifier descriptors.
+		// Also consider sending a zero length in the packet instead.
+		// It may avoid the need for this clause altogether.
+		case 0x06:
+			Address = receiveBuffer+2+1;
+			//Size	= (receiveBuffer[0] | (receiveBuffer[1] << 8)) - 1;
+			Size	= 0;
 			break;
 		default:
 			Address = receiveBuffer+2+1;
